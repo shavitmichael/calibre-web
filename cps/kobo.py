@@ -214,10 +214,9 @@ def HandleMetadataRequest(book_uuid):
     metadata = get_metadata(book)
     return jsonify([metadata])
 
-
 def get_download_url_for_book(book, book_format):
     return "{url_base}/download/{book_id}/{book_format}".format(
-        url_base=config.config_server_url,
+        url_base=get_base_url(),
         book_id=book.id,
         book_format=book_format.lower(),
     )
@@ -384,10 +383,12 @@ def HandleAuthRequest():
     )
     return response
 
+def get_base_url():
+    return "{root}:{port}".format(root=request.url_root[:-1], port=str(config.config_port))
 
 @kobo.route("/v1/initialization")
 def HandleInitRequest():
-    resources = NATIVE_KOBO_RESOURCES(calibre_web_url=config.config_server_url)
+    resources = NATIVE_KOBO_RESOURCES(calibre_web_url=get_base_url())
     response = make_response(jsonify({"Resources": resources}))
     response.headers["x-kobo-apitoken"] = "e30="
     return response
