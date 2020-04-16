@@ -52,7 +52,7 @@ from .services import SyncToken as SyncToken
 from .web import download_required
 from .kobo_auth import requires_kobo_auth
 
-KOBO_FORMATS = {"KEPUB": ["KEPUB"], "EPUB": ["EPUB3", "EPUB"]}
+KOBO_FORMATS = {"KEPUB": ["EPUB"], "EPUB": ["EPUB"]}
 KOBO_STOREAPI_URL = "https://storeapi.kobo.com"
 KOBO_IMAGEHOST_URL = "https://kbimages1-a.akamaihd.net"
 
@@ -295,6 +295,7 @@ def create_book_entitlement(book, archived):
         "Id": book_uuid,
         "IsRemoved": archived,
         "IsHiddenFromArchive": False,
+        "IsInternetArchive": True,
         "IsLocked": False,
         "LastModified": convert_to_kobo_timestamp_string(book.last_modified),
         "OriginCategory": "Imported",
@@ -364,7 +365,7 @@ def get_metadata(book):
         "ExternalIds": [],
         "Genre": "00000000-0000-0000-0000-000000000001",
         "IsEligibleForKoboLove": False,
-        "IsInternetArchive": False,
+        "IsInternetArchive": True,
         "IsPreOrder": False,
         "IsSocialEnabled": True,
         "Language": "en",
