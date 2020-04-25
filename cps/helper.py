@@ -68,8 +68,12 @@ from .subproc_wrapper import process_wait
 from .worker import STAT_WAITING, STAT_FAIL, STAT_STARTED, STAT_FINISH_SUCCESS
 from .worker import TASK_EMAIL, TASK_CONVERT, TASK_UPLOAD, TASK_CONVERT_ANY
 
+from b2sdk.account_info.in_memory import InMemoryAccountInfo
+from b2sdk.api import B2Api
 
 log = logger.create()
+
+B2_SECRETS = os.path.join("b2_secrets.json")
 
 
 # Convert existing book entry to new format
@@ -873,6 +877,35 @@ def get_cc_columns():
     return cc
 
 
+def get_b2_download_link(book, data, book_format):
+    file_name = data.name + "." + book_format
+    file_path = os.path.join(book.path, file_name)
+
+    if not os.path.isfile(B2_SECRETS):
+        log.error(u"b2 secret file not found")
+        return None
+    with open(B2_SECRETS, "r") as filedata:
+        secrets = json.load(filedata)
+
+    info = InMemoryAccountInfo()
+    b2_api = B2Api(info)
+    b2_api.authorize_account(
+        "production", secrets["application_key_id"], secrets["application_key"]
+    )
+    bucket = b2_api.get_bucket_by_name(secrets["bucket_name"])
+    if not bucket:
+        log.error(u"b2 bucket not found")
+        return None
+
+    download_url = b2_api.get_download_url_for_file_name(
+        secrets["bucket_name"], file_path
+    )
+    download_authorization = bucket.get_download_authorization(
+        file_path, valid_duration_in_seconds=600
+    )
+    return download_url + "?Authorization=" + download_authorization
+
+
 def get_download_link(book_id, book_format):
     book_format = book_format.split(".")[0]
     book = db.session.query(db.Books).filter(db.Books.id == book_id).filter(common_filters()).first()
@@ -881,19 +914,22 @@ def get_download_link(book_id, book_format):
             .filter(db.Data.format == book_format.upper()).first()
     else:
         abort(404)
+    
     if data1:
+        return redirect(get_b2_download_link(book, data1, book_format),307)
+
         # collect downloaded books only for registered user and not for anonymous user
-        if current_user.is_authenticated:
-            ub.update_download(book_id, int(current_user.id))
-        file_name = book.title
-        if len(book.authors) > 0:
-            file_name = book.authors[0].name + '_' + file_name
-        file_name = get_valid_filename(file_name)
-        headers = Headers()
-        headers["Content-Type"] = mimetypes.types_map.get('.' + book_format, "application/octet-stream")
-        headers["Content-Disposition"] = "attachment; filename=%s.%s; filename*=UTF-8''%s.%s" % (
-            quote(file_name.encode('utf-8')), book_format, quote(file_name.encode('utf-8')), book_format)
-        return do_download_file(book, book_format, data1, headers)
+        # if current_user.is_authenticated:
+        #     ub.update_download(book_id, int(current_user.id))
+        # file_name = book.title
+        # if len(book.authors) > 0:
+        #     file_name = book.authors[0].name + '_' + file_name
+        # file_name = get_valid_filename(file_name)
+        # headers = Headers()
+        # headers["Content-Type"] = mimetypes.types_map.get('.' + book_format, "application/octet-stream")
+        # headers["Content-Disposition"] = "attachment; filename=%s.%s; filename*=UTF-8''%s.%s" % (
+        #     quote(file_name.encode('utf-8')), book_format, quote(file_name.encode('utf-8')), book_format)
+        # return do_download_file(book, book_format, data1, headers)
     else:
         abort(404)
 
