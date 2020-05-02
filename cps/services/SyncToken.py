@@ -92,6 +92,7 @@ class SyncToken:
         archive_last_modified=datetime.min,
         reading_state_last_modified=datetime.min,
         tags_last_modified=datetime.min,
+        reading_state_last_id=-1,
     ):
         self.raw_kobo_store_token = raw_kobo_store_token
         self.books_last_created = books_last_created
