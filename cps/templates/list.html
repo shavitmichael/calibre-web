@@ -18,6 +18,10 @@
         <button class="btn btn-primary char">{{char.char}}</button>
         {% endfor %}
       </div>
+
+      {% if data == "series" %}
+      <button class="update-view btn btn-primary" href="#" data-target="series_view" data-view="grid">Grid</button>
+      {% endif %}
     </div>
   <div class="container">
     <div id="list" class="col-xs-12 col-sm-6">
@@ -35,7 +39,7 @@
             <span class="glyphicon glyphicon-star good"></span>
             {% if loop.last and loop.index < 5 %}
               {% for numer in range(5 - loop.index) %}
-                <span class="glyphicon glyphicon-star"></span>
+                <span class="glyphicon glyphicon-star-empty"></span>
               {% endfor %}
             {% endif %}
           {% endfor %}

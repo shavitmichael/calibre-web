@@ -36,10 +36,7 @@ from flask_principal import Principal
 from . import config_sql, logger, cache_buster, cli, ub, db
 from .reverseproxy import ReverseProxied
 from .server import WebServer
-try:
-    from werkzeug.middleware.proxy_fix import ProxyFix
-except ImportError:
-    from werkzeug.contrib.fixers import ProxyFix
+
 
 mimetypes.init()
 mimetypes.add_type('application/xhtml+xml', '.xhtml')
@@ -60,10 +57,17 @@ mimetypes.add_type('application/ogg', '.ogg')
 mimetypes.add_type('application/ogg', '.oga')
 
 app = Flask(__name__)
+app.config.update(
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE='Lax',
+    REMEMBER_COOKIE_SAMESITE='Lax',  # will be available in flask-login 0.5.1 earliest
+)
+
 
 lm = LoginManager()
 lm.login_view = 'web.login'
 lm.anonymous_user = ub.Anonymous
+lm.session_protection = 'strong'
 
 ub.init_db(cli.settingspath)
 # pylint: disable=no-member
@@ -79,11 +83,10 @@ log = logger.create()
 
 from . import services
 
+calibre_db = db.CalibreDB()
+
 def create_app():
-    try:
-        app.wsgi_app = ReverseProxied(ProxyFix(app.wsgi_app, x_for=1, x_host=1))
-    except (ValueError, TypeError):
-        app.wsgi_app = ReverseProxied(ProxyFix(app.wsgi_app))
+    app.wsgi_app = ReverseProxied(app.wsgi_app)
     # For python2 convert path to unicode
     if sys.version_info < (3, 0):
         app.static_folder = app.static_folder.decode('utf-8')
@@ -95,10 +98,11 @@ def create_app():
     log.info('Starting Calibre Web...')
     Principal(app)
     lm.init_app(app)
-    app.secret_key = os.getenv('SECRET_KEY', 'A0Zr98j/3yX R~XHH!jmN]LWX/,?RT')
+    app.secret_key = os.getenv('SECRET_KEY', config_sql.get_flask_session_key(ub.session))
 
     web_server.init_app(app, config)
-    db.setup_db(config)
+    calibre_db.setup_db(config, cli.settingspath)
+    calibre_db.start()
 
     babel.init_app(app)
     _BABEL_TRANSLATIONS.update(str(item) for item in babel.list_translations())

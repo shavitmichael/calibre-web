@@ -1,6 +1,6 @@
 {% extends "layout.html" %}
 {% block body %}
-<div class="col-sm-8">
+<div class="col-md-10 col-lg-6">
   <form role="form" id="search" action="{{ url_for('web.advanced_search') }}" method="GET">
     <div class="form-group">
       <label for="book_title">{{_('Book Title')}}</label>
@@ -141,6 +141,10 @@
 
         {% if c.datatype == 'int' %}
           <input type="number" step="1" class="form-control" name="{{ 'custom_column_' ~ c.id }}" id="{{ 'custom_column_' ~ c.id }}" value="">
+        {% endif %}
+
+        {% if c.datatype == 'float' %}
+          <input type="number" step="0.01" class="form-control" name="{{ 'custom_column_' ~ c.id }}" id="{{ 'custom_column_' ~ c.id }}" value="">
         {% endif %}
 
         {% if c.datatype in ['text', 'series'] and not c.is_multiple %}

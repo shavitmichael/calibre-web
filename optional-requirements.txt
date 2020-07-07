@@ -1,9 +1,9 @@
 # GDrive Integration
 google-api-python-client==1.7.11,<1.8.0
-gevent>=1.2.1,<1.6.0
+gevent>=1.2.1,<20.6.0
 greenlet>=0.4.12,<0.5.0
 httplib2>=0.9.2,<0.18.0
-oauth2client>=4.0.0,<4.14.0
+oauth2client>=4.0.0,<4.1.4
 uritemplate>=3.0.0,<3.1.0
 pyasn1-modules>=0.0.8,<0.3.0
 pyasn1>=0.1.9,<0.5.0
@@ -31,7 +31,7 @@ rarfile>=2.7
 
 # other
 natsort>=2.2.0,<7.1.0
-git+https://github.com/OzzieIsaacs/comicapi.git@15dff9ce4e1ffed29ba4a2feadfcdb6bed00bcad#egg=comicapi
+git+https://github.com/OzzieIsaacs/comicapi.git@3e15b950b72724b1b8ca619c36580b5fbaba9784#egg=comicapi
 
 #Kobo integration
 jsonschema>=3.2.0,<3.3.0

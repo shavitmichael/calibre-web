@@ -48,7 +48,7 @@ from sqlalchemy.sql.expression import and_, or_
 from sqlalchemy.exc import StatementError
 import requests
 
-from . import config, logger, kobo_auth, db, helper, shelf as shelf_lib, ub
+from . import config, logger, kobo_auth, db, calibre_db, helper, shelf as shelf_lib, ub
 from .services import SyncToken as SyncToken
 from .web import download_required
 from .kobo_auth import requires_kobo_auth
@@ -143,7 +143,7 @@ def HandleSyncRequest():
 
     # We reload the book database so that the user get's a fresh view of the library
     # in case of external changes (e.g: adding a book through Calibre).
-    db.reconnect_db(config)
+    calibre_db.reconnect_db(config, ub.app_DB_path)
 
     archived_books = (
         ub.session.query(ub.ArchivedBook)
@@ -170,7 +170,7 @@ def HandleSyncRequest():
     # It looks like it's treating the db.Books.last_modified field as a string and may fail
     # the comparison because of the +00:00 suffix.
     changed_entries = (
-        db.session.query(db.Books)
+        calibre_db.session.query(db.Books)
         .join(db.Data)
         .filter(or_(func.datetime(db.Books.last_modified) > sync_token.books_last_modified,
                     db.Books.id.in_(recently_restored_or_archived_books)))
@@ -207,7 +207,7 @@ def HandleSyncRequest():
                      ub.KoboReadingState.user_id == current_user.id,
                      ub.KoboReadingState.book_id.notin_(reading_states_in_new_entitlements))))
     for kobo_reading_state in changed_reading_states.all():
-        book = db.session.query(db.Books).filter(db.Books.id == kobo_reading_state.book_id).one_or_none()
+        book = calibre_db.session.query(db.Books).filter(db.Books.id == kobo_reading_state.book_id).one_or_none()
         if book:
             sync_results.append({
                 "ChangedReadingState": {
@@ -256,7 +256,7 @@ def HandleMetadataRequest(book_uuid):
     if not current_app.wsgi_app.is_proxied:
         log.debug('Kobo: Received unproxied request, changed request port to server port')
     log.info("Kobo library metadata request received for book %s" % book_uuid)
-    book = db.session.query(db.Books).filter(db.Books.uuid == book_uuid).first()
+    book = calibre_db.get_book_by_uuid(book_uuid)
     if not book or not book.data:
         log.info(u"Book %s not found in database", book_uuid)
         return redirect_or_proxy_request()
@@ -332,6 +332,9 @@ def get_series(book):
         return None
     return book.series[0].name
 
+def get_seriesindex(book):
+    return book.series_index or 1
+
 
 def get_metadata(book):
     download_urls = []
@@ -386,8 +389,8 @@ def get_metadata(book):
             name = get_series(book)
         metadata["Series"] = {
             "Name": get_series(book),
-            "Number": book.series_index,        # ToDo Check int() ?
-            "NumberFloat": float(book.series_index),
+            "Number": get_seriesindex(book),        # ToDo Check int() ?
+            "NumberFloat": float(get_seriesindex(book)),
             # Get a deterministic id based on the series name.
             "Id": uuid.uuid3(uuid.NAMESPACE_DNS, name),
         }
@@ -471,7 +474,7 @@ def add_items_to_shelf(items, shelf):
                 items_unknown_to_calibre.append(item)
                 continue
 
-            book = db.session.query(db.Books).filter(db.Books.uuid == item["RevisionId"]).one_or_none()
+            book = calibre_db.get_book_by_uuid(item["RevisionId"])
             if not book:
                 items_unknown_to_calibre.append(item)
                 continue
@@ -542,7 +545,7 @@ def HandleTagRemoveItem(tag_id):
                 items_unknown_to_calibre.append(item)
                 continue
 
-            book = db.session.query(db.Books).filter(db.Books.uuid == item["RevisionId"]).one_or_none()
+            book = calibre_db.get_book_by_uuid(item["RevisionId"])
             if not book:
                 items_unknown_to_calibre.append(item)
                 continue
@@ -610,7 +613,7 @@ def create_kobo_tag(shelf):
         "Type": "UserTag"
     }
     for book_shelf in shelf.books:
-        book = db.session.query(db.Books).filter(db.Books.id == book_shelf.book_id).one_or_none()
+        book = calibre_db.get_book(book_shelf.book_id)
         if not book:
             log.info(u"Book (id: %s) in BookShelf (id: %s) not found in book database",  book_shelf.book_id, shelf.id)
             continue
@@ -626,7 +629,7 @@ def create_kobo_tag(shelf):
 @kobo.route("/v1/library/<book_uuid>/state", methods=["GET", "PUT"])
 @login_required
 def HandleStateRequest(book_uuid):
-    book = db.session.query(db.Books).filter(db.Books.uuid == book_uuid).first()
+    book = calibre_db.get_book_by_uuid(book_uuid)
     if not book or not book.data:
         log.info(u"Book %s not found in database", book_uuid)
         return redirect_or_proxy_request()
@@ -801,7 +804,7 @@ def TopLevelEndpoint():
 @login_required
 def HandleBookDeletionRequest(book_uuid):
     log.info("Kobo book deletion request received for book %s" % book_uuid)
-    book = db.session.query(db.Books).filter(db.Books.uuid == book_uuid).first()
+    book = calibre_db.get_book_by_uuid(book_uuid)
     if not book:
         log.info(u"Book %s not found in database", book_uuid)
         return redirect_or_proxy_request()
@@ -979,7 +982,7 @@ def NATIVE_KOBO_RESOURCES():
         "blackstone_header": {"key": "x-amz-request-payer", "value": "requester"},
         "book": "https://storeapi.kobo.com/v1/products/books/{ProductId}",
         "book_detail_page": "https://store.kobobooks.com/{culture}/ebook/{slug}",
-        "book_detail_page_rakuten": "http://books.rakuten.co.jp/rk/{crossrevisionid}",
+        "book_detail_page_rakuten": "https://books.rakuten.co.jp/rk/{crossrevisionid}",
         "book_landing_page": "https://store.kobobooks.com/ebooks",
         "book_subscription": "https://storeapi.kobo.com/v1/products/books/subscriptions",
         "categories": "https://storeapi.kobo.com/v1/categories",
@@ -1017,7 +1020,7 @@ def NATIVE_KOBO_RESOURCES():
         "get_tests_request": "https://storeapi.kobo.com/v1/analytics/gettests",
         "giftcard_epd_redeem_url": "https://www.kobo.com/{storefront}/{language}/redeem-ereader",
         "giftcard_redeem_url": "https://www.kobo.com/{storefront}/{language}/redeem",
-        "help_page": "http://www.kobo.com/help",
+        "help_page": "https://www.kobo.com/help",
         "kobo_audiobooks_enabled": "False",
         "kobo_audiobooks_orange_deal_enabled": "False",
         "kobo_audiobooks_subscriptions_enabled": "False",
